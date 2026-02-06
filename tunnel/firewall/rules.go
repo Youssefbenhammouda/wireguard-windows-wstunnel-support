@@ -1102,47 +1102,12 @@ func blockDNS(except []netip.Addr, session uintptr, baseObjects *baseObjects, we
 		}
 	}
 
-	allowConditionsV4 := make([]wtFwpmFilterCondition0, 0, len(denyConditions)+len(except))
-	allowConditionsV4 = append(allowConditionsV4, denyConditions...)
-	for _, ip := range except {
-		if !ip.Is4() {
-			continue
-		}
-		allowConditionsV4 = append(allowConditionsV4, wtFwpmFilterCondition0{
-			fieldKey:  cFWPM_CONDITION_IP_REMOTE_ADDRESS,
-			matchType: cFWP_MATCH_EQUAL,
-			conditionValue: wtFwpConditionValue0{
-				_type: cFWP_UINT32,
-				value: uintptr(binary.BigEndian.Uint32(ip.AsSlice())),
-			},
-		})
-	}
-
 	storedPointers := make([]*wtFwpByteArray16, 0, len(except))
-	allowConditionsV6 := make([]wtFwpmFilterCondition0, 0, len(denyConditions)+len(except))
-	allowConditionsV6 = append(allowConditionsV6, denyConditions...)
-	for _, ip := range except {
-		if !ip.Is6() {
-			continue
-		}
-		address := wtFwpByteArray16{byteArray16: ip.As16()}
-		allowConditionsV6 = append(allowConditionsV6, wtFwpmFilterCondition0{
-			fieldKey:  cFWPM_CONDITION_IP_REMOTE_ADDRESS,
-			matchType: cFWP_MATCH_EQUAL,
-			conditionValue: wtFwpConditionValue0{
-				_type: cFWP_BYTE_ARRAY16_TYPE,
-				value: uintptr(unsafe.Pointer(&address)),
-			},
-		})
-		storedPointers = append(storedPointers, &address)
-	}
 
 	filter = wtFwpmFilter0{
-		providerKey:         &baseObjects.provider,
-		subLayerKey:         baseObjects.filters,
-		weight:              filterWeight(weightAllow),
-		numFilterConditions: uint32(len(allowConditionsV4)),
-		filterCondition:     (*wtFwpmFilterCondition0)(unsafe.Pointer(&allowConditionsV4[0])),
+		providerKey: &baseObjects.provider,
+		subLayerKey: baseObjects.filters,
+		weight:      filterWeight(weightAllow),
 		action: wtFwpmAction0{
 			_type: cFWP_ACTION_PERMIT,
 		},
@@ -1150,78 +1115,87 @@ func blockDNS(except []netip.Addr, session uintptr, baseObjects *baseObjects, we
 
 	filterID = uint64(0)
 
-	//
-	// #5 Allow IPv4 outbound DNS.
-	//
-	if len(allowConditionsV4) > len(denyConditions) {
-		displayData, err := createWtFwpmDisplayData0("Allow DNS outbound (IPv4)", "")
-		if err != nil {
-			return wrapErr(err)
+	for _, ip := range except {
+		if ip.Is4() {
+			allowConditions := append([]wtFwpmFilterCondition0{}, denyConditions...)
+			allowConditions = append(allowConditions, wtFwpmFilterCondition0{
+				fieldKey:  cFWPM_CONDITION_IP_REMOTE_ADDRESS,
+				matchType: cFWP_MATCH_EQUAL,
+				conditionValue: wtFwpConditionValue0{
+					_type: cFWP_UINT32,
+					value: uintptr(binary.BigEndian.Uint32(ip.AsSlice())),
+				},
+			})
+
+			filter.numFilterConditions = uint32(len(allowConditions))
+			filter.filterCondition = (*wtFwpmFilterCondition0)(unsafe.Pointer(&allowConditions[0]))
+
+			// #5 Allow IPv4 outbound DNS.
+			displayData, err := createWtFwpmDisplayData0("Allow DNS outbound (IPv4)", "")
+			if err != nil {
+				return wrapErr(err)
+			}
+			filter.displayData = *displayData
+			filter.layerKey = cFWPM_LAYER_ALE_AUTH_CONNECT_V4
+			err = fwpmFilterAdd0(session, &filter, 0, &filterID)
+			if err != nil {
+				return wrapErr(err)
+			}
+
+			// #6 Allow IPv4 inbound DNS.
+			displayData, err = createWtFwpmDisplayData0("Allow DNS inbound (IPv4)", "")
+			if err != nil {
+				return wrapErr(err)
+			}
+			filter.displayData = *displayData
+			filter.layerKey = cFWPM_LAYER_ALE_AUTH_RECV_ACCEPT_V4
+			err = fwpmFilterAdd0(session, &filter, 0, &filterID)
+			if err != nil {
+				return wrapErr(err)
+			}
+			continue
 		}
 
-		filter.displayData = *displayData
-		filter.layerKey = cFWPM_LAYER_ALE_AUTH_CONNECT_V4
+		if ip.Is6() {
+			address := wtFwpByteArray16{byteArray16: ip.As16()}
+			storedPointers = append(storedPointers, &address)
 
-		err = fwpmFilterAdd0(session, &filter, 0, &filterID)
-		if err != nil {
-			return wrapErr(err)
-		}
-	}
+			allowConditions := append([]wtFwpmFilterCondition0{}, denyConditions...)
+			allowConditions = append(allowConditions, wtFwpmFilterCondition0{
+				fieldKey:  cFWPM_CONDITION_IP_REMOTE_ADDRESS,
+				matchType: cFWP_MATCH_EQUAL,
+				conditionValue: wtFwpConditionValue0{
+					_type: cFWP_BYTE_ARRAY16_TYPE,
+					value: uintptr(unsafe.Pointer(&address)),
+				},
+			})
 
-	//
-	// #6 Allow IPv4 inbound DNS.
-	//
-	if len(allowConditionsV4) > len(denyConditions) {
-		displayData, err := createWtFwpmDisplayData0("Allow DNS inbound (IPv4)", "")
-		if err != nil {
-			return wrapErr(err)
-		}
+			filter.numFilterConditions = uint32(len(allowConditions))
+			filter.filterCondition = (*wtFwpmFilterCondition0)(unsafe.Pointer(&allowConditions[0]))
 
-		filter.displayData = *displayData
-		filter.layerKey = cFWPM_LAYER_ALE_AUTH_RECV_ACCEPT_V4
+			// #7 Allow IPv6 outbound DNS.
+			displayData, err := createWtFwpmDisplayData0("Allow DNS outbound (IPv6)", "")
+			if err != nil {
+				return wrapErr(err)
+			}
+			filter.displayData = *displayData
+			filter.layerKey = cFWPM_LAYER_ALE_AUTH_CONNECT_V6
+			err = fwpmFilterAdd0(session, &filter, 0, &filterID)
+			if err != nil {
+				return wrapErr(err)
+			}
 
-		err = fwpmFilterAdd0(session, &filter, 0, &filterID)
-		if err != nil {
-			return wrapErr(err)
-		}
-	}
-
-	filter.filterCondition = (*wtFwpmFilterCondition0)(unsafe.Pointer(&allowConditionsV6[0]))
-	filter.numFilterConditions = uint32(len(allowConditionsV6))
-
-	//
-	// #7 Allow IPv6 outbound DNS.
-	//
-	if len(allowConditionsV6) > len(denyConditions) {
-		displayData, err := createWtFwpmDisplayData0("Allow DNS outbound (IPv6)", "")
-		if err != nil {
-			return wrapErr(err)
-		}
-
-		filter.displayData = *displayData
-		filter.layerKey = cFWPM_LAYER_ALE_AUTH_CONNECT_V6
-
-		err = fwpmFilterAdd0(session, &filter, 0, &filterID)
-		if err != nil {
-			return wrapErr(err)
-		}
-	}
-
-	//
-	// #8 Allow IPv6 inbound DNS.
-	//
-	if len(allowConditionsV6) > len(denyConditions) {
-		displayData, err := createWtFwpmDisplayData0("Allow DNS inbound (IPv6)", "")
-		if err != nil {
-			return wrapErr(err)
-		}
-
-		filter.displayData = *displayData
-		filter.layerKey = cFWPM_LAYER_ALE_AUTH_RECV_ACCEPT_V6
-
-		err = fwpmFilterAdd0(session, &filter, 0, &filterID)
-		if err != nil {
-			return wrapErr(err)
+			// #8 Allow IPv6 inbound DNS.
+			displayData, err = createWtFwpmDisplayData0("Allow DNS inbound (IPv6)", "")
+			if err != nil {
+				return wrapErr(err)
+			}
+			filter.displayData = *displayData
+			filter.layerKey = cFWPM_LAYER_ALE_AUTH_RECV_ACCEPT_V6
+			err = fwpmFilterAdd0(session, &filter, 0, &filterID)
+			if err != nil {
+				return wrapErr(err)
+			}
 		}
 	}
 

@@ -6,5 +6,6 @@
 package version
 
 const (
-	Number = "0.5.3"
+	Number = "0.5.4"
+	BuildTag = "wstunnel"
 )

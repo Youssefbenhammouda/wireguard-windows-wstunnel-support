@@ -59,6 +59,9 @@ func (conf *Config) ToWgQuick() string {
 	if len(conf.Interface.PostDown) > 0 {
 		output.WriteString(fmt.Sprintf("PostDown = %s\n", conf.Interface.PostDown))
 	}
+	if len(conf.Interface.WstunnelHost) > 0 {
+		output.WriteString(fmt.Sprintf("WSTUNNEL_HOST = %s\n", conf.Interface.WstunnelHost))
+	}
 	if conf.Interface.TableOff {
 		output.WriteString("Table = off\n")
 	}

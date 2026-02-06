@@ -115,6 +115,9 @@ func watchInterface() (*interfaceWatcher, error) {
 
 		if state, err := iw.adapter.AdapterState(); err == nil && state == driver.AdapterStateDown {
 			log.Println("Reinitializing adapter configuration")
+			if summary := allowedIPsSummary(iw.conf); summary != "" {
+				log.Printf("AllowedIPs applied: %s", summary)
+			}
 			err = iw.adapter.SetConfiguration(iw.conf.ToDriverConfiguration())
 			if err != nil {
 				log.Println(fmt.Errorf("%v: %w", services.ErrorDeviceSetConfig, err))

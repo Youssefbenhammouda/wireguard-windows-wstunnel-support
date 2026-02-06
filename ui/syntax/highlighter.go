@@ -370,6 +370,7 @@ const (
 	fieldPostUp
 	fieldPreDown
 	fieldPostDown
+	fieldWstunnelHost
 	fieldPeerSection
 	fieldPublicKey
 	fieldPresharedKey
@@ -421,6 +422,8 @@ func (s stringSpan) field() field {
 		return fieldPreDown
 	case s.isCaselessSame("PostDown"):
 		return fieldPostDown
+	case s.isCaselessSame("WSTUNNEL_HOST"):
+		return fieldWstunnelHost
 	}
 	return fieldInvalid
 }
@@ -453,6 +456,28 @@ func (hsa *highlightSpanArray) highlightMultivalueValue(parent, s stringSpan, se
 			hsa.append(parent.s, s, highlightHost)
 		} else {
 			hsa.append(parent.s, s, highlightError)
+		}
+	case fieldWstunnelHost:
+		if s.isValidHostname() {
+			hsa.append(parent.s, s, highlightHost)
+			break
+		}
+		if !s.isValidNetwork() {
+			hsa.append(parent.s, s, highlightError)
+			break
+		}
+		slash := 0
+		for ; slash < s.len; slash++ {
+			if *s.at(slash) == '/' {
+				break
+			}
+		}
+		if slash == s.len {
+			hsa.append(parent.s, s, highlightIP)
+		} else {
+			hsa.append(parent.s, stringSpan{s.s, slash}, highlightIP)
+			hsa.append(parent.s, stringSpan{s.at(slash), 1}, highlightDelimiter)
+			hsa.append(parent.s, stringSpan{s.at(slash + 1), s.len - slash - 1}, highlightCidr)
 		}
 	case fieldAddress, fieldAllowedIPs:
 		if !s.isValidNetwork() {
@@ -539,7 +564,7 @@ func (hsa *highlightSpanArray) highlightValue(parent, s stringSpan, section fiel
 		hsa.append(parent.s, stringSpan{s.s, colon}, highlightHost)
 		hsa.append(parent.s, stringSpan{s.at(colon), 1}, highlightDelimiter)
 		hsa.append(parent.s, stringSpan{s.at(colon + 1), s.len - colon - 1}, highlightPort)
-	case fieldAddress, fieldDNS, fieldAllowedIPs:
+	case fieldAddress, fieldDNS, fieldAllowedIPs, fieldWstunnelHost:
 		hsa.highlightMultivalue(parent, s, section)
 	default:
 		hsa.append(parent.s, s, highlightError)

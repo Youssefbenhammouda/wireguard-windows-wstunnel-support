@@ -87,11 +87,13 @@ func (config *Config) ResolveEndpoints() error {
 		if config.Peers[i].Endpoint.IsEmpty() {
 			continue
 		}
+		log.Printf("Resolving endpoint for peer %d: %s", i+1, config.Peers[i].Endpoint.Host)
 		var err error
 		config.Peers[i].Endpoint.Host, err = resolveHostname(config.Peers[i].Endpoint.Host)
 		if err != nil {
 			return err
 		}
+		log.Printf("Resolved endpoint for peer %d: %s", i+1, config.Peers[i].Endpoint.Host)
 	}
 	return nil
 }

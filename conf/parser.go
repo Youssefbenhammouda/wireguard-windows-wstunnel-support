@@ -249,6 +249,8 @@ func FromWgQuick(s, name string) (*Config, error) {
 				conf.Interface.PreDown = val
 			case "postdown":
 				conf.Interface.PostDown = val
+			case "wstunnel_host":
+				conf.Interface.WstunnelHost = val
 			case "table":
 				tableOff, err := parseTableOff(val)
 				if err != nil {

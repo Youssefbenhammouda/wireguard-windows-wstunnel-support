@@ -49,6 +49,7 @@ type Interface struct {
 	PostUp     string
 	PreDown    string
 	PostDown   string
+	WstunnelHost string
 	TableOff   bool
 }
 

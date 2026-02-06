@@ -113,6 +113,12 @@ func (service *tunnelService) Execute(args []string, r <-chan svc.ChangeRequest,
 		serviceError = services.ErrorLoadConfiguration
 		return
 	}
+	if config.Interface.WstunnelHost != "" {
+		log.Printf("WSTUNNEL_HOST: %s", config.Interface.WstunnelHost)
+	}
+	if summary := allowedIPsSummary(config); summary != "" {
+		log.Printf("AllowedIPs configured: %s", summary)
+	}
 	config.DeduplicateNetworkEntries()
 
 	log.SetPrefix(fmt.Sprintf("[%s] ", config.Name))
@@ -149,6 +155,14 @@ func (service *tunnelService) Execute(args []string, r <-chan svc.ChangeRequest,
 	if err != nil {
 		serviceError = services.ErrorDNSLookup
 		return
+	}
+	if err := config.ApplyWstunnelHostExclusions(); err != nil {
+		serviceError = services.ErrorDNSLookup
+		return
+	}
+	config.DeduplicateNetworkEntries()
+	if summary := allowedIPsSummary(config); summary != "" {
+		log.Printf("AllowedIPs after WSTUNNEL_HOST exclusions: %s", summary)
 	}
 
 	log.Println("Creating network adapter")
@@ -201,6 +215,9 @@ func (service *tunnelService) Execute(args []string, r <-chan svc.ChangeRequest,
 	}
 
 	log.Println("Setting interface configuration")
+	if summary := allowedIPsSummary(config); summary != "" {
+		log.Printf("AllowedIPs applied: %s", summary)
+	}
 	err = adapter.SetConfiguration(config.ToDriverConfiguration())
 	if err != nil {
 		serviceError = services.ErrorDeviceSetConfig

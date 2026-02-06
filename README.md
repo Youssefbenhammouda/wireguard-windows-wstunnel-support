@@ -19,6 +19,22 @@ In addition to this [`README.md`](README.md), the following documents are also a
 - [`enterprise.md`](docs/enterprise.md) &ndash; A summary of various features and tips for making the application usable in enterprise settings.
 - [`netquirk.md`](docs/netquirk.md) &ndash; A description of various networking quirks and "kill-switch" semantics.
 
+## This Fork: WSTunnel-Aware Routing
+
+This fork adds a small, explicit configuration hook to keep a WSTunnel endpoint reachable outside the WireGuard tunnel.
+
+- Adds `WSTUNNEL_HOST` in the `[Interface]` section (comma-separated hostnames, IPs, or CIDR prefixes).
+- Resolves and excludes those addresses from `AllowedIPs` temporarily on service start without altering the original configuration, so the WSTunnel host is not routed into the tunnel.
+- Logs the exclusions and the resulting `AllowedIPs` changes for visibility.
+
+What this fork does not do:
+
+- It does not bundle, install, or launch `wstunnel`.
+- It does not create a WebSocket tunnel or alter WireGuard protocol behavior.
+- It does not auto-detect endpoints or rewrite configs beyond removing the excluded prefixes. 
+
+Built-in `wstunnel` support is on the TODO list.
+
 ## License
 
 This repository is MIT-licensed.
